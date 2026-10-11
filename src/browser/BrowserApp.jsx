@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Conversation } from '@/components/Conversation';
 import { applyCaptionPatch } from './caption-updates';
 import { validateModelFiles, downloadModels, modelDownloadMB, MODEL_CACHE, modelEntries } from './model-import';
+import { openModelStore, deleteModelStore } from './model-storage';
 import { InferenceClient } from './inference-client';
 
 export default function BrowserApp() {
@@ -69,7 +70,7 @@ export default function BrowserApp() {
     } finally { setChecking(false); setDownloading(false); downloadController.current = null; }
   }
   async function clearModelCache() {
-    try { await caches.delete(MODEL_CACHE); setStatus('Saved model downloads removed.'); }
+    try { await deleteModelStore(); await caches.delete(MODEL_CACHE); setStatus('Saved model downloads removed.'); }
     catch (error) { setError(error.message); }
   }
   useEffect(() => {
@@ -78,15 +79,16 @@ export default function BrowserApp() {
     setChecking(true);
     (async () => {
       try {
+        const store = await openModelStore();
         const cache = await globalThis.caches?.open(MODEL_CACHE);
-        if (!cache) return;
-        const keys = new Set((await cache.keys()).map(request => request.url));
-        if (!modelEntries.every(entry => keys.has(entry.url))) {
-          if (active && keys.size) setStatus('Some model files are already saved. Download models will reuse them and finish the rest.');
+        const keys = new Set((await cache?.keys() || []).map(request => request.url));
+        const available = await Promise.all(modelEntries.map(async entry => await store.has(entry) || keys.has(entry.url)));
+        if (!available.every(Boolean)) {
+          if (active && available.some(Boolean)) setStatus('Some model files are already saved. Download models will reuse them and finish the rest.');
           return;
         }
         const result = await downloadModels(message => { if (active) setStatus(message); }, {
-          signal: controller.signal,
+          signal: controller.signal, store,
           fetcher: () => { throw Error('Saved models need repair. Choose Download models or Import models.'); },
         });
         if (active) { setModelFiles(result.files); setStatus('Saved models verified. Ready to load.'); }

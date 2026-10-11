@@ -1,3 +1,4 @@
+import { openModelStore } from './model-storage.js';
 import chunks from '../../config/browser-model-chunks.json' with { type: 'json' };
 import manifest from '../../config/browser-models.json' with { type: 'json' };
 
@@ -91,42 +92,43 @@ export async function validateModelFiles(files, status = () => {}, entries = mod
   return selected;
 }
 
-export async function downloadModels(status = () => {}, { signal, fetcher = fetch, storage = globalThis.caches, entries = modelEntries } = {}) {
+export async function downloadModels(status = () => {}, { signal, fetcher = fetch, store, legacyStorage = globalThis.caches, entries = modelEntries } = {}) {
   const selected = Object.create(null);
-  let cache;
-  try { cache = await storage?.open(MODEL_CACHE); } catch { /* Storage may be unavailable; inference can still run. */ }
-  if (!cache) throw Error('Browser storage is unavailable. Enable site storage or use Import models.');
+  signal?.throwIfAborted();
+  store ||= await openModelStore();
+  let legacy;
+  try { legacy = await legacyStorage?.open(MODEL_CACHE); } catch {}
   for (const entry of entries) {
     signal?.throwIfAborted();
-    let blob;
-    try {
-      const cached = await cache?.match(entry.url);
-      if (cached) {
-        status(`Verifying saved ${entry.path}…`);
-        blob = await cached.blob();
-        await verifyModelFile(blob, entry);
+    let file = await store.read(entry);
+    if (file) {
+      try { status('Verifying saved ' + entry.path + '…'); await verifyModelFile(file, entry); }
+      catch { file = null; await store.remove(entry); }
+    }
+    if (!file) {
+      // Migrate existing downloads through the same bounded verification stream.
+      // Never call Response.blob() on a large cached response.
+      let response = await legacy?.match(entry.url);
+      const migrating = !!response;
+      if (migrating) status('Moving saved ' + entry.path + ' to file storage…');
+      else {
+        status('Downloading ' + entry.path + '…');
+        response = await fetcher(entry.url, { signal, credentials:'omit', referrerPolicy:'no-referrer', cache:'no-store' });
+        if (!response.ok) throw Error('Download failed (' + response.status + '): ' + entry.path + '. Retry or import your folder.');
       }
-    } catch { blob = null; await cache?.delete(entry.url).catch(() => {}); }
-    if (!blob) {
-      status(`Downloading ${entry.path}…`);
-      const response = await fetcher(entry.url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' });
-      if (!response.ok) throw Error(`Download failed (${response.status}): ${entry.path}. Retry or import your folder.`);
       try {
-        await cache.put(entry.url, new Response(verifiedStream(response.body, entry, status, signal), {
-          headers: { 'Content-Length': String(entry.size), 'Content-Type': 'application/octet-stream' },
-        }));
-        const stored = await cache.match(entry.url);
-        if (!stored) throw Error('Browser did not save the model. Check available storage.');
-        blob = await stored.blob();
-        await verifyModelFile(blob, entry);
+        file = await store.write(entry, verifiedStream(response.body, entry, status, signal), signal);
+        if (!file || file.size !== entry.size) throw Error('Browser did not save the complete model.');
+        if (migrating) await legacy.delete(entry.url);
+        status('Saved and verified ' + entry.path);
       } catch (error) {
-        await cache.delete(entry.url).catch(() => {});
+        if (migrating && /Integrity|Wrong file size|exceeds/.test(error.message)) await legacy.delete(entry.url);
         if (error.name === 'QuotaExceededError') throw Error('Not enough browser storage. Free space or use Import models. Completed files remain saved.');
         throw error;
       }
     }
-    selected[entry.path] = blob;
+    selected[entry.path] = file;
   }
   signal?.throwIfAborted();
-  return { files: selected, saved: true };
+  return {files:selected, saved:true};
 }
