@@ -14,7 +14,7 @@ WebGPU runs speech encoding and speaker detection in separate workers; they stil
 
 Node 24 or newer. Install with `npm ci --ignore-scripts`, run `npm audit`, `npm test`, and `npm run build`. Serve `browser-dist` using HTTPS (localhost is also usable for development). Do not open HTML directly with `file://`.
 
-Publishing is not enabled by this source-only push. Add a GitHub Pages build/deploy workflow with appropriate GitHub permissions, then choose **GitHub Actions** in repository Settings → Pages. The workflow should run the install, audit, test, and build commands above and publish `browser-dist`. Both the root and browser.html open the same app. The production bundle includes runtime and font assets, but no models or native backend.
+Choose **GitHub Actions** in repository Settings → Pages. The included workflow installs locked dependencies, audits them, runs tests, builds, and publishes `browser-dist` on changes to main. Both the root and browser.html open the same app. The production bundle includes runtime and font assets, but no models or native backend.
 
 ## Privacy and security
 

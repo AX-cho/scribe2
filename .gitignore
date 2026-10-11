@@ -5,5 +5,3 @@ browser-models/
 .DS_Store
 *.log
 
-# Retained locally until GitHub workflow permission is available.
-.github/workflows/pages.yml
