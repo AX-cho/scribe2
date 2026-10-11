@@ -50,7 +50,7 @@ export class NemotronBrowserASR {
   private streamProcessedSamples = 0;
   private streamLanguageId = 101;
 
-  async load(onStatus: (message: string) => void, options: {wasmPaths?: string, device?: 'wasm' | 'webgpu', threads?: number, jointMode?: 'logits' | 'argmax' | 'verify'} = {}): Promise<void> {
+  async load(onStatus: (message: string) => void, options: {readModel?: (name: string) => Promise<Uint8Array>, wasmPaths?: string, device?: 'wasm' | 'webgpu', threads?: number, jointMode?: 'logits' | 'argmax' | 'verify'} = {}): Promise<void> {
     if (this.sessions) return;
     ort.env.wasm.numThreads = globalThis.crossOriginIsolated
       ? Math.max(1, Math.min(options.threads ?? 4, navigator.hardwareConcurrency || 1))
@@ -61,7 +61,7 @@ export class NemotronBrowserASR {
     this.vocabulary = tokenizer.model.vocab.map((entry: [string, number]) => entry[0]);
     this.jointMode = options.jointMode ?? "argmax";
     const gpu = options.device === "webgpu";
-    this.sessions = await createSessions([gpu ? "webgpu" : "wasm"], gpu, onStatus, this.jointMode);
+    this.sessions = await createSessions([gpu ? "webgpu" : "wasm"], gpu, onStatus, this.jointMode, options.readModel);
     this.reset();
   }
 
@@ -362,6 +362,7 @@ async function createSession(
   executionProviders: ort.InferenceSession.ExecutionProviderConfig[],
   keepEncoderCacheOnGpu = false,
   jointMode: 'logits' | 'argmax' | 'verify' = 'argmax',
+  readModel?: (name: string) => Promise<Uint8Array>,
 ): Promise<ort.InferenceSession> {
   const graphName = name === 'joint' && jointMode !== 'logits' ? `joint-${jointMode}` : name;
   const modelUrl = `${MODEL_ROOT}/${graphName}.onnx`;
@@ -374,11 +375,11 @@ async function createSession(
   } else if (keepEncoderCacheOnGpu && name === "decoder") {
     preferredOutputLocation = { decoder_output: "gpu-buffer", h_out: "gpu-buffer", c_out: "gpu-buffer" };
   }
-  return ort.InferenceSession.create(modelUrl, {
+  return ort.InferenceSession.create(readModel ? await readModel(`${graphName}.onnx`) : modelUrl, {
     executionProviders,
     graphOptimizationLevel: "all",
     preferredOutputLocation,
-    externalData: [{ path: `${name}.onnx.data`, data: `${MODEL_ROOT}/${name}.onnx.data` }],
+    externalData: [{ path: `${name}.onnx.data`, data: readModel ? await readModel(`${name}.onnx.data`) : `${MODEL_ROOT}/${name}.onnx.data` }],
   });
 }
 
@@ -387,17 +388,18 @@ async function createSessions(
   keepEncoderCacheOnGpu: boolean,
   onStatus: (message: string) => void,
   jointMode: 'logits' | 'argmax' | 'verify',
+  readModel?: (name: string) => Promise<Uint8Array>,
 ): Promise<Sessions> {
   let encoder: ort.InferenceSession | undefined;
   let decoder: ort.InferenceSession | undefined;
   let joint: ort.InferenceSession | undefined;
   try {
     onStatus("loading encoder");
-    encoder = await createSession("encoder", executionProviders, keepEncoderCacheOnGpu);
+    encoder = await createSession("encoder", executionProviders, keepEncoderCacheOnGpu, jointMode, readModel);
     onStatus("loading decoder");
-    decoder = await createSession("decoder", ["wasm"], false);
+    decoder = await createSession("decoder", ["wasm"], false, jointMode, readModel);
     onStatus("loading joint");
-    joint = await createSession("joint", ["wasm"], false, jointMode);
+    joint = await createSession("joint", ["wasm"], false, jointMode, readModel);
     return { encoder, decoder, joint };
   } catch (error) {
     await Promise.allSettled([encoder?.release(), decoder?.release(), joint?.release()]);

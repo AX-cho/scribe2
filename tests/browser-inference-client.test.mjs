@@ -19,8 +19,8 @@ test('separate runtimes share one bounded thread budget, with single-core fallba
 test('speech publishes before speaker results, while acknowledgements track the slower worker',()=>{
   const {client,workers:[asr,diar],messages}=harness();
   client.postMessage({type:'load'});
-  assert.equal(asr.sent[0].data.threads,3);assert.equal(diar.sent[0].data.threads,1);
-  asr.emit({type:'ready'});assert.equal(messages.length,0);
+  assert.equal(asr.sent[0].data.threads,3);assert.equal(diar.sent.length,0);
+  asr.emit({type:'ready'});assert.equal(diar.sent[0].data.threads,1);assert.equal(messages.at(-1).type,'status');
   diar.emit({type:'ready'});assert.equal(messages.at(-1).type,'ready');
   client.postMessage({type:'start'});
   asr.emit({type:'words',from:0,words:[{text:'Hello',time:.1}]});
@@ -70,9 +70,11 @@ test('WebGPU uses independent GPU workers and never retries on CPU',()=>{
   assert.equal(workers.length,2);
   assert.equal(workers[0].sent[0].device,'webgpu');
   assert.equal(workers[0].sent[0].threads,1);
+  assert.equal(workers[1].sent.length,0);
+  workers[0].onmessage({data:{type:'ready'}});
   assert.equal(workers[1].sent[0].device,'webgpu');
   assert.equal(workers[1].sent[0].threads,3);
-  for(const worker of workers)worker.onmessage({data:{type:'ready'}});
+  workers[1].onmessage({data:{type:'ready'}});
   assert.equal(events.at(-1).device,'webgpu');
   workers[0].onmessage({data:{type:'ack',samples:1600,elapsedMs:10}});
   assert.equal(events.at(-1).samples,1600); // no speaker acknowledgement needed

@@ -14,6 +14,7 @@ export class InferenceClient {
     this.device = device;
     this.plan = threadPlan(mode, hardware, isolated, device);
     this.jointMode = jointMode;
+    this.pendingLoads = [];
     this.onmessage = null; this.onerror = null; this.closed = false;
     this.updates = new CaptionUpdates(); this.words = []; this.acked = 0; this.sentSamples = 0;
     this.members = (this.plan.mode === 'parallel' ? ['asr','diar'] : ['both']).map(role => {
@@ -30,6 +31,8 @@ export class InferenceClient {
     if (data.type === 'error') return this.fail(data.message);
     if (data.type === 'ready') {
       member.ready = true;
+      const next = this.pendingLoads.shift();
+      if (next) { this.emit({type:'status', message:'Speech model ready. Loading speaker detection…'}); next.member.worker.postMessage(next.data); }
       if (this.members.every(m=>m.ready)) this.emit({ type:'ready', plan:this.plan, device:this.device });
     } else if (data.type === 'words' || data.type === 'activity') {
       if (data.type === 'words') {
@@ -56,6 +59,12 @@ export class InferenceClient {
   }
   postMessage(data) {
     if (this.closed) return;
+    if (data.type === 'load') {
+      this.pendingLoads = this.members.map(member => ({member, data: { ...data, modelFiles: data.modelFiles ? Object.fromEntries(Object.entries(data.modelFiles).filter(([path]) => member.role === 'both' || path.startsWith(member.role + '/'))) : undefined, role:member.role, threads:this.plan[member.role], jointMode:this.jointMode, device:this.device }}));
+      const first = this.pendingLoads.shift();
+      first.member.worker.postMessage(first.data);
+      return;
+    }
     if (data.type === 'start') {
       this.updates = new CaptionUpdates(); this.words = []; this.acked = 0; this.sentSamples = 0;
       if (this.members.some(m=>m.disabled)) {
@@ -82,7 +91,7 @@ export class InferenceClient {
     }
   }
   terminate() {
-    this.closed = true;
+    this.closed = true; this.pendingLoads = [];
     this.members.forEach(m=>m.worker.terminate());
     this.words = []; this.updates = null;
   }

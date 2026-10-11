@@ -2,6 +2,7 @@ import * as ort from 'onnxruntime-web/webgpu';
 import { env } from '../../vendor/transformers/src/env.js';
 import { Nemotron3DiarizationProcessor } from '../../vendor/transformers/src/models/nemotron3_diarization/processing_nemotron3_diarization.js';
 import { Nemotron3DiarizationForAudioFrameClassification } from '../../vendor/transformers/src/models/nemotron3_diarization/modeling_nemotron3_diarization.js';
+import { readModelBuffer } from './model-buffer';
 import { NemotronBrowserASR } from './nemotron';
 import { CaptionUpdates, processCaptionBatch } from './caption-updates';
 
@@ -94,7 +95,7 @@ self.onmessage = ({ data }) => {
       }
       if (role !== 'diar') {
         asr = new NemotronBrowserASR();
-        await asr.load(status, { device, threads, wasmPaths: new URL('ort/', assetBase).href, jointMode: data.jointMode || 'argmax' });
+        await asr.load(status, { device, threads, readModel: name => readModelBuffer(modelFiles['asr/' + name]), wasmPaths: new URL('ort/', assetBase).href, jointMode: data.jointMode || 'argmax' });
       }
       if (role !== 'asr') {
         status('Loading local speaker model');
