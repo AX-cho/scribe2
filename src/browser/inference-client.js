@@ -16,7 +16,7 @@ export class InferenceClient {
     this.jointMode = jointMode;
     this.pendingLoads = [];
     this.onmessage = null; this.onerror = null; this.closed = false;
-    this.updates = new CaptionUpdates(); this.words = []; this.acked = 0; this.sentSamples = 0;
+    this.updates = new CaptionUpdates(); this.words = []; this.acked = 0; this.sentSamples = 0; this.sessionStart = 0;
     this.members = (this.plan.mode === 'parallel' ? ['asr','diar'] : ['both']).map(role => {
       const member = { role, worker:workerFactory(), ready:false, stopped:false, processed:0, elapsedMs:0 };
       member.worker.onmessage = event => this.receive(member,event.data);
@@ -46,6 +46,7 @@ export class InferenceClient {
       if (patch) this.emit({ type:'captions', ...patch });
     } else if (data.type === 'ack') {
       member.processed += data.samples; member.elapsedMs = data.elapsedMs;
+      this.emitDiagnostics();
       const completed = this.device === 'webgpu' ? this.members.find(m=>m.role==='asr').processed : Math.min(...this.members.map(m=>m.processed));
       const samples = completed - this.acked;
       if (samples > 0) {
@@ -57,6 +58,23 @@ export class InferenceClient {
       if (this.members.every(m=>m.stopped || m.disabled)) this.emit({ type:'stopped', plan:this.plan, stages:this.members.map(({role,elapsedMs,metrics})=>({role,elapsedMs,metrics})) });
     } else this.emit(data);
   }
+  emitDiagnostics() {
+    if (this.device !== 'webgpu' || !this.sessionStart) return;
+    const asr = this.members.find(m => m.role === 'asr');
+    const diar = this.members.find(m => m.role === 'diar');
+    const elapsed = Math.max((performance.now() - this.sessionStart) / 1000, 0.001);
+    const stage = m => ({
+      processedSeconds: m.processed / 16000,
+      computeRtf: m.processed ? m.elapsedMs / (m.processed / 16000 * 1000) : null,
+      effectiveSpeed: (m.processed / 16000) / elapsed,
+    });
+    this.emit({ type:'diagnostics',
+      asr:stage(asr), diar:stage(diar),
+      asrBacklogSeconds:Math.max(0,(this.sentSamples-asr.processed)/16000),
+      diarBacklogSeconds:Math.max(0,(this.sentSamples-diar.processed)/16000),
+      speakerStopped:Boolean(diar.disabled),
+    });
+  }
   postMessage(data) {
     if (this.closed) return;
     if (data.type === 'load') {
@@ -66,7 +84,7 @@ export class InferenceClient {
       return;
     }
     if (data.type === 'start') {
-      this.updates = new CaptionUpdates(); this.words = []; this.acked = 0; this.sentSamples = 0;
+      this.updates = new CaptionUpdates(); this.words = []; this.acked = 0; this.sentSamples = 0; this.sessionStart = performance.now();
       if (this.members.some(m=>m.disabled)) {
         this.updates.speakerDetectionEnded = true;
         this.emit({type:'warning',message:'Speaker detection is stopped. Live words continue; refresh to restart speaker detection.'});
@@ -83,6 +101,7 @@ export class InferenceClient {
           this.emit({type:'warning',message:'Speaker detection fell more than 15 seconds behind and has stopped. Live words continue; refresh to restart speaker detection.'});
         }
       }
+      this.emitDiagnostics();
       const activeMembers = this.members.filter(m=>!m.disabled);
       const buffers = activeMembers.map((_,i)=> i === activeMembers.length-1 ? data.samples : data.samples.slice(0));
       activeMembers.forEach((m,i)=>m.worker.postMessage({ ...data, samples:buffers[i] },[buffers[i]]));
