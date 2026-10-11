@@ -89,3 +89,23 @@ test('WebGPU uses independent GPU workers and never retries on CPU',()=>{
   assert.ok(workers.every(w=>w.terminated));
   assert.throws(()=>new InferenceClient({device:'remote'}),/Invalid execution device/);
 });
+
+test('WebGPU diagnostics measure independent stage throughput and backlog',()=>{
+  const workers=[],events=[];
+  const client=new InferenceClient({device:'webgpu',workerFactory:()=>{
+    const worker={sent:[],postMessage(d){this.sent.push(d);},terminate(){this.terminated=true;},emit(d){this.onmessage({data:d});}};
+    workers.push(worker);return worker;
+  }});
+  client.onmessage=({data})=>events.push(data);
+  client.postMessage({type:'start'});
+  client.postMessage({type:'audio',samples:new Float32Array(16000).buffer});
+  workers[0].emit({type:'ack',samples:16000,elapsedMs:250});
+  workers[1].emit({type:'ack',samples:8000,elapsedMs:800});
+  const result=events.filter(e=>e.type==='diagnostics').at(-1);
+  assert.equal(result.asrBacklogSeconds,0);
+  assert.equal(result.diarBacklogSeconds,0.5);
+  assert.equal(result.asr.computeRtf,0.25);
+  assert.equal(result.diar.computeRtf,1.6);
+  assert.equal(result.speakerStopped,false);
+  client.terminate();
+});
