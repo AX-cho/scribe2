@@ -1,0 +1,19 @@
+{
+  "transformers": {
+    "repository": "https://github.com/huggingface/transformers.js",
+    "revision": "4993a4d3d6c65a1ad5f93c4aab5846f7321537d0",
+    "scope": "src and LICENSE only; no upstream install scripts executed",
+    "local_changes": [
+      "Removed unused mistral3 vision-to-sequence registry entry flagged by GitHub push protection; Nemotron imports are unchanged."
+    ]
+  },
+  "asr_reference": {
+    "repository": "https://github.com/People-11/Nemotron_Web",
+    "revision": "5b37ff1d9fb021db6d9db2ec3a4768e5ee6310e0",
+    "verified_git_blobs": [
+      "src/nemotron.ts",
+      "src/audio.ts"
+    ],
+    "changes": "CPU WASM only, local models, original joint graph with JS argmax, approximate token times"
+  }
+}

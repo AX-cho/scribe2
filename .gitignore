@@ -1,0 +1,9 @@
+node_modules/
+browser-dist/
+browser-models/
+.env
+.DS_Store
+*.log
+
+# Retained locally until GitHub workflow permission is available.
+.github/workflows/pages.yml

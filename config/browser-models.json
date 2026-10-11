@@ -1,0 +1,136 @@
+[
+  {
+    "id": "onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4",
+    "sha": "8364d9e2dd9da23789b480bdbba9e423717e42ee",
+    "directory": "asr",
+    "files": [
+      {
+        "rfilename": "README.md",
+        "blobId": "4eb85dcccff895426f970b93f7c6524497c7929f",
+        "size": 10139
+      },
+      {
+        "rfilename": "audio_processor_config.json",
+        "blobId": "4605fbbb08589c7632d2bd3806cd5955748360cf",
+        "size": 413
+      },
+      {
+        "rfilename": "decoder.onnx",
+        "blobId": "5b8551b4d3af637e8557061195f10c0d17e95214",
+        "size": 4696,
+        "lfs": {
+          "sha256": "6a9f608dcbab71ebd81ffa4c198e82a5b6bb10f1c1830a94c752c5f543454df3",
+          "size": 4696,
+          "pointerSize": 129
+        }
+      },
+      {
+        "rfilename": "decoder.onnx.data",
+        "blobId": "d53f773cae0811e4033178b3fea5b35e3953bddf",
+        "size": 59785216,
+        "lfs": {
+          "sha256": "e5fd55cbeeb268f9d383e2ee72735b9fbbb13aea4bc7cd38cb73b8e16f1366c7",
+          "size": 59785216,
+          "pointerSize": 133
+        }
+      },
+      {
+        "rfilename": "encoder.onnx",
+        "blobId": "1fe96aa05f1a3d049c028cd179102c0439ac0270",
+        "size": 2677548,
+        "lfs": {
+          "sha256": "0b05217594ec0bda442e43a90a298ac2471a3bdcea9b169de34214e61a730e17",
+          "size": 2677548,
+          "pointerSize": 132
+        }
+      },
+      {
+        "rfilename": "encoder.onnx.data",
+        "blobId": "32b660182074cc99c5dcaf9c98359a493236317d",
+        "size": 690089984,
+        "lfs": {
+          "sha256": "2f27295855aeb99ab1f8cd2254418d9ad7a087ea8dbe85f5596b4d887ea7d630",
+          "size": 690089984,
+          "pointerSize": 134
+        }
+      },
+      {
+        "rfilename": "genai_config.json",
+        "blobId": "bd60ee2aebae26d1cac0ab423b86446faf63a55f",
+        "size": 1892
+      },
+      {
+        "rfilename": "joint.onnx",
+        "blobId": "2ffed6d7d3aa6924179a8e7a3daa143dfc3fa573",
+        "size": 2136,
+        "lfs": {
+          "sha256": "e2c7d2fa40a243bf82eaca36c15698c52129de9361d2875d7f223f67fcd9482d",
+          "size": 2136,
+          "pointerSize": 129
+        }
+      },
+      {
+        "rfilename": "joint.onnx.data",
+        "blobId": "42b495ca269a650ade450a671ae351e01a7949d2",
+        "size": 37830656,
+        "lfs": {
+          "sha256": "2e0fb1c060f3777a1a76e78d5589dd54f01505a06dffbd2588e315508b402c12",
+          "size": 37830656,
+          "pointerSize": 133
+        }
+      },
+      {
+        "rfilename": "tokenizer.json",
+        "blobId": "97cddf4bca98282d23c3ef19683e1ec85bed51a2",
+        "size": 642525
+      }
+    ]
+  },
+  {
+    "id": "onnx-community/Nemotron-3-Diarization-ONNX",
+    "sha": "353b6f8ad2cac3580e982d7fbdf0a010786b0406",
+    "directory": "diar",
+    "files": [
+      {
+        "rfilename": "README.md",
+        "blobId": "be67f9ece6ca2644795de3742cb760cd2f9cae5f",
+        "size": 31309
+      },
+      {
+        "rfilename": "config.json",
+        "blobId": "b9ea82484c7038e56106fd6f296694ee12a98107",
+        "size": 1623
+      },
+      {
+        "rfilename": "onnx/model_quantized.onnx",
+        "blobId": "3c966d8809a6b9f3b1c3288965ba0c576f0455e0",
+        "size": 364375,
+        "lfs": {
+          "sha256": "fff7d18c7439c9fdc1c6c4dfec924cb42d3344264ca879780dfaf7ee886e6c1e",
+          "size": 364375,
+          "pointerSize": 131
+        }
+      },
+      {
+        "rfilename": "onnx/model_quantized.onnx_data",
+        "blobId": "4b75cee4f5a34e9cf15de0103c6d5514baba683f",
+        "size": 120479872,
+        "lfs": {
+          "sha256": "002d7483e1c865c35c82220fdb378f185ff213c6d35922b38ae421c8ec72c338",
+          "size": 120479872,
+          "pointerSize": 134
+        }
+      },
+      {
+        "rfilename": "preprocessor_config.json",
+        "blobId": "9b177e08a7509a1a4cde340f7ef7a509f326497c",
+        "size": 339
+      },
+      {
+        "rfilename": "processor_config.json",
+        "blobId": "5779fbbbb8401983be84e0b4f09a236ad8227dfe",
+        "size": 623
+      }
+    ]
+  }
+]
