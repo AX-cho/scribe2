@@ -109,6 +109,7 @@ export default function BrowserApp() {
   const [session, setSession] = useState({ id: 'browser', segments: [] }), [holding, setHolding] = useState(false), [held, setHeld] = useState(null);
   const [size, setSize] = useState(28), [contrast, setContrast] = useState(false), [announce, setAnnounce] = useState(false);
   const [level, setLevel] = useState(0), [lag, setLag] = useState(0), [speed, setSpeed] = useState(null);
+  const [diagnostics, setDiagnostics] = useState(null);
   const [deviceMode, setDeviceMode] = useState('webgpu');
   const executionLabel = deviceMode === 'webgpu' ? 'WebGPU speech + speakers' : 'browser CPU';
   const [cpuMode, setCpuMode] = useState('sequential');
@@ -127,7 +128,7 @@ export default function BrowserApp() {
   }
   function fail(message) {
     release(); worker.current?.terminate(); worker.current = null;
-    pending.current = 0; setLag(0); setPhase('unloaded'); setError(message); setStatus('Stopped. Load models to try again.');
+    pending.current = 0; setLag(0); setDiagnostics(null); setPhase('unloaded'); setError(message); setStatus('Stopped. Load models to try again.');
   }
   useEffect(() => {
     enumerate().catch(() => {});
@@ -142,6 +143,7 @@ export default function BrowserApp() {
     const next = new InferenceClient({ mode:cpuMode, device:deviceMode, jointMode:'logits' }); worker.current = next;
     next.onerror = event => fail(event.message || 'Browser inference worker failed');
     next.onmessage = ({ data }) => {
+      if (data.type === 'diagnostics') setDiagnostics(data);
       if (data.type === 'status') setStatus(data.message);
       if (data.type === 'ready') { setPhase('ready'); setCpuMode(data.plan.mode); setStatus(`Ready · ${executionLabel} · ${data.plan.mode === 'parallel' ? 'separate workers' : 'shared worker'}`); }
       if (data.type === 'error') fail(data.message);
@@ -173,7 +175,7 @@ export default function BrowserApp() {
       const mute = context.createGain(); mute.gain.value = 0;
       Object.assign(capture.current, { source, node });
       source.connect(filter).connect(node).connect(mute).connect(context.destination);
-      pending.current = 0; setLag(0); setSpeed(null); setSession({ id: 'browser', segments: [] }); setHolding(false); setHeld(null);
+      pending.current = 0; setLag(0); setSpeed(null); setDiagnostics(null); setSession({ id: 'browser', segments: [] }); setHolding(false); setHeld(null);
       worker.current.postMessage({ type: 'start' });
       liveRef.current = true;
       node.port.onmessage = ({ data }) => {
@@ -227,6 +229,7 @@ export default function BrowserApp() {
         <section className="tool-section"><h2 className="tool-heading">Reading comfort</h2><Button variant="outline" aria-pressed={contrast} onClick={() => setContrast(!contrast)}>High contrast</Button><p><label><input type="checkbox" checked={announce} onChange={e => setAnnounce(e.target.checked)}/> Announce captions to screen readers</label></p><Button variant="ghost" disabled={phase !== 'ready' && phase !== 'unloaded'} onClick={() => { setSession({ id: 'browser', segments: [] }); setHeld(null); setHolding(false); }}>Clear conversation</Button></section>
         <section className="privacy-card"><ShieldCheck size={20} aria-hidden="true"/><div><h2>Audio stays in this browser</h2><p>No inference server, recording, or audio uploads. Refresh clears the conversation. Models are imported or downloaded on request; app code loads from this website. Only model files may be saved, never conversations.</p></div></section>
         <section className="tool-section"><label htmlFor="execution-device">Processing</label><select id="execution-device" data-slot="native-select" value={deviceMode} disabled={phase !== 'unloaded'} onChange={event => setDeviceMode(event.target.value)}><option value="webgpu">WebGPU speech + speakers</option><option value="wasm">CPU only</option></select><p className="input-description">Speech encoding and speaker detection use this device’s GPU in separate workers. Token decoding stays on CPU. No automatic CPU fallback. CPU uses one thread without cross-origin isolation.</p><label htmlFor="cpu-mode">Worker scheduling</label><select id="cpu-mode" data-slot="native-select" value={deviceMode === 'webgpu' ? 'parallel' : cpuMode} disabled={phase !== 'unloaded' || deviceMode === 'webgpu'} onChange={event => setCpuMode(event.target.value)}><option value="sequential">Shared worker</option><option value="parallel">Separate workers (experimental)</option></select><p className="input-description">WebGPU always runs speech and speaker detection in separate workers, so speech does not wait for speaker labels. Both models share GPU capacity. CPU-only scheduling can be chosen before loading models.</p></section>
+        {deviceMode === 'webgpu' && <section className="tool-section" aria-label="Inference diagnostics"><h2>Live inference diagnostics</h2><p className="input-description">Measures worker throughput and backlog. Compute RTF is measured worker processing time divided by processed audio duration; it includes CPU work and waiting for GPU operations, not isolated GPU kernel time.</p>{diagnostics ? <div role="status" aria-live="off"><p>Speech backlog: {diagnostics.asrBacklogSeconds.toFixed(1)} s · Speed: {diagnostics.asr.effectiveSpeed.toFixed(2)}× · Compute RTF: {diagnostics.asr.computeRtf?.toFixed(2) ?? '—'}</p><p>Speaker backlog: {diagnostics.diarBacklogSeconds.toFixed(1)} s · Speed: {diagnostics.diar.effectiveSpeed.toFixed(2)}× · Compute RTF: {diagnostics.diar.computeRtf?.toFixed(2) ?? '—'}</p>{diagnostics.speakerStopped && <p>Speaker detection stopped after exceeding the backlog limit.</p>}</div> : <p className="input-description">Start captions to see live metrics.</p>}</section>}
         <p className="small-note">Experimental · English captions · Nemotron ASR int4 + diarization q8. Processing speed depends on the device. {speed !== null && <span id="cpu-speed">Processing: {speed.toFixed(2)}× real time (1× keeps pace).</span>}</p>
       </aside></div>
     </main>
