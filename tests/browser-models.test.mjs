@@ -27,9 +27,8 @@ test('corrupt cached models are removed and replaced with verified downloads',as
   const result=await downloadModels(()=>{},{storage:cache,entries:[entry],fetcher:async()=>new Response(body)});
   assert.equal(await result.files[entry.path].text(),body);
 });
-test('storage failure permits verified in-memory use; cancellation avoids download',async()=>{
-  const result=await downloadModels(()=>{},{storage:{open:async()=>{throw Error('quota');}},entries:[entry],fetcher:async()=>new Response(body)});
-  assert.equal(result.saved,false);
+test('storage failure and cancellation avoid downloads',async()=>{
+  await assert.rejects(downloadModels(()=>{},{storage:{open:async()=>{throw Error('quota');}},entries:[entry],fetcher:()=>{throw Error('must not fetch');}}),/storage is unavailable/);
   const controller=new AbortController();controller.abort();
   await assert.rejects(downloadModels(()=>{},{signal:controller.signal,storage:storage(),entries:[entry],fetcher:()=>{throw Error('must not fetch');}}),{name:'AbortError'});
 });
@@ -39,4 +38,12 @@ test('imports reject missing, duplicate, or modified model files',async()=>{
   await assert.rejects(validateModelFiles([],()=>{},[entry]),/exactly one/);
   await assert.rejects(validateModelFiles([file,file],()=>{},[entry]),/exactly one/);
   await assert.rejects(validateModelFiles([new File(['x'.repeat(body.length)],entry.path)],()=>{},[entry]),/Integrity/);
+});
+test('truncated streams and cancellation during a download leave no cached partial file',async()=>{
+  const cache=storage();
+  await assert.rejects(downloadModels(()=>{},{storage:cache,entries:[entry],fetcher:async()=>new Response(body.slice(0,-1))}),/Wrong file size/);
+  assert.equal(cache.values.size,0);
+  const controller=new AbortController();
+  await assert.rejects(downloadModels(()=>{},{storage:cache,entries:[entry],signal:controller.signal,fetcher:async()=>new Response(new ReadableStream({pull(c){controller.abort();c.enqueue(new TextEncoder().encode(body));c.close();}}))}),{name:'AbortError'});
+  assert.equal(cache.values.size,0);
 });

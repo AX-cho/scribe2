@@ -3,7 +3,7 @@ import { Captions, Mic, Square, Pause, Play, Plus, Minus, ShieldCheck } from 'lu
 import { Button } from '@/components/ui/button';
 import { Conversation } from '@/components/Conversation';
 import { applyCaptionPatch } from './caption-updates';
-import { validateModelFiles, downloadModels, modelDownloadMB, MODEL_CACHE } from './model-import';
+import { validateModelFiles, downloadModels, modelDownloadMB, MODEL_CACHE, modelEntries } from './model-import';
 import { InferenceClient } from './inference-client';
 
 export default function BrowserApp() {
@@ -27,6 +27,29 @@ export default function BrowserApp() {
     try { await caches.delete(MODEL_CACHE); setStatus('Saved model downloads removed.'); }
     catch (error) { setError(error.message); }
   }
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setChecking(true);
+    (async () => {
+      try {
+        const cache = await globalThis.caches?.open(MODEL_CACHE);
+        if (!cache) return;
+        const keys = new Set((await cache.keys()).map(request => request.url));
+        if (!modelEntries.every(entry => keys.has(entry.url))) {
+          if (active && keys.size) setStatus('Some model files are already saved. Download models will reuse them and finish the rest.');
+          return;
+        }
+        const result = await downloadModels(message => { if (active) setStatus(message); }, {
+          signal: controller.signal,
+          fetcher: () => { throw Error('Saved models need repair. Choose Download models or Import models.'); },
+        });
+        if (active) { setModelFiles(result.files); setStatus('Saved models verified. Ready to load.'); }
+      } catch (error) { if (active) setStatus(error.message); }
+      finally { if (active) setChecking(false); }
+    })();
+    return () => { active = false; controller.abort(); };
+  }, []);
   async function importModels(event) {
     setChecking(true); setModelFiles(null); setError('');
     try { setModelFiles(await validateModelFiles([...event.target.files], setStatus)); setStatus('Models verified. Ready to load.'); }
@@ -152,7 +175,7 @@ export default function BrowserApp() {
         <Conversation session={session} live={live} holding={holding} heldSession={held} textSize={size} announce={announce} onReturn={() => setHolding(false)}/>
         <div className="caption-footer"><span>Speaker labels may change. Overlapping speech and word boundaries can be uncertain.</span></div>
       </section><aside className="conversation-tools" aria-label="Caption settings">
-        <section className="tool-section"><h2>Models on your device</h2><p id="model-help" className="input-description">Download about {modelDownloadMB} MB from Hugging Face, or import your browser-models folder containing asr/ and diar/. Both options verify the approved model files. Audio stays here.</p><Button id="download-models" disabled={phase !== 'unloaded' || checking} aria-describedby="model-help" onClick={download}>Download models</Button>{' '}<Button id="import-models" variant="outline" disabled={phase !== 'unloaded' || checking} aria-describedby="model-help" onClick={() => modelInput.current?.click()}>Import models</Button><input ref={modelInput} id="model-folder" type="file" webkitdirectory="" multiple hidden disabled={phase !== 'unloaded' || checking} onChange={importModels}/>{downloading && <Button variant="outline" onClick={() => downloadController.current?.abort()}>Cancel download</Button>}<p className="input-description">Downloads are saved in this browser when storage permits. After refreshing, Download models reuses and verifies saved files. Imports are not saved. The model host receives download requests; no files or audio are uploaded.</p><Button variant="ghost" disabled={checking} onClick={clearModelCache}>Delete saved models</Button></section><section className="tool-section"><div className="tool-heading"><Mic size={18}/><h2>Your microphone</h2></div><label htmlFor="microphone">Audio input</label><select id="microphone" data-slot="native-select" value={device} disabled={['listening', 'starting', 'stopping'].includes(phase)} onChange={e => setDevice(e.target.value)}><option value="">System default</option>{devices.filter(d => d.deviceId).map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>)}</select><p className="input-description">Choose the microphone closest to the conversation. Stop captions before switching.</p><Button variant="outline" disabled={live} onClick={selectMicrophones}>Show microphone names</Button><div className="signal-line"><span className={`signal-bars level-${level}`} aria-hidden="true">{[1,2,3,4,5].map(n => <i key={n}/>)}</span><span>{live ? level ? 'Audio detected' : 'No microphone signal' : 'Microphone off'}</span></div></section>
+        <section className="tool-section"><h2>Models on your device</h2><p id="model-help" className="input-description">Download about {modelDownloadMB} MB from Hugging Face, or import your browser-models folder containing asr/ and diar/. Both options verify the approved model files. Audio stays here.</p><Button id="download-models" disabled={phase !== 'unloaded' || checking} aria-describedby="model-help" onClick={download}>Download models</Button>{' '}<Button id="import-models" variant="outline" disabled={phase !== 'unloaded' || checking} aria-describedby="model-help" onClick={() => modelInput.current?.click()}>Import models</Button><input ref={modelInput} id="model-folder" type="file" webkitdirectory="" multiple hidden disabled={phase !== 'unloaded' || checking} onChange={importModels}/>{downloading && <Button variant="outline" onClick={() => downloadController.current?.abort()}>Cancel download</Button>}<p className="input-description">Downloads are saved in this browser when storage permits. After refreshing, completed downloads are restored and verified automatically. Partial downloads resume file by file with Download models. Imports are not saved. The model host receives download requests; no files or audio are uploaded.</p><Button variant="ghost" disabled={checking} onClick={clearModelCache}>Delete saved models</Button></section><section className="tool-section"><div className="tool-heading"><Mic size={18}/><h2>Your microphone</h2></div><label htmlFor="microphone">Audio input</label><select id="microphone" data-slot="native-select" value={device} disabled={['listening', 'starting', 'stopping'].includes(phase)} onChange={e => setDevice(e.target.value)}><option value="">System default</option>{devices.filter(d => d.deviceId).map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>)}</select><p className="input-description">Choose the microphone closest to the conversation. Stop captions before switching.</p><Button variant="outline" disabled={live} onClick={selectMicrophones}>Show microphone names</Button><div className="signal-line"><span className={`signal-bars level-${level}`} aria-hidden="true">{[1,2,3,4,5].map(n => <i key={n}/>)}</span><span>{live ? level ? 'Audio detected' : 'No microphone signal' : 'Microphone off'}</span></div></section>
         <section className="tool-section"><h2 className="tool-heading">Reading comfort</h2><Button variant="outline" aria-pressed={contrast} onClick={() => setContrast(!contrast)}>High contrast</Button><p><label><input type="checkbox" checked={announce} onChange={e => setAnnounce(e.target.checked)}/> Announce captions to screen readers</label></p><Button variant="ghost" disabled={phase !== 'ready' && phase !== 'unloaded'} onClick={() => { setSession({ id: 'browser', segments: [] }); setHeld(null); setHolding(false); }}>Clear conversation</Button></section>
         <section className="privacy-card"><ShieldCheck size={20} aria-hidden="true"/><div><h2>Audio stays in this browser</h2><p>No inference server, recording, or audio uploads. Refresh clears the conversation. Models are imported or downloaded on request; app code loads from this website. Only model files may be saved, never conversations.</p></div></section>
         <section className="tool-section"><label htmlFor="execution-device">Processing</label><select id="execution-device" data-slot="native-select" value={deviceMode} disabled={phase !== 'unloaded'} onChange={event => setDeviceMode(event.target.value)}><option value="webgpu">WebGPU speech + speakers</option><option value="wasm">CPU only</option></select><p className="input-description">Speech encoding and speaker detection use this device’s GPU in separate workers. Token decoding stays on CPU. No automatic CPU fallback. CPU uses one thread without cross-origin isolation.</p><label htmlFor="cpu-mode">Worker scheduling</label><select id="cpu-mode" data-slot="native-select" value={deviceMode === 'webgpu' ? 'parallel' : cpuMode} disabled={phase !== 'unloaded' || deviceMode === 'webgpu'} onChange={event => setCpuMode(event.target.value)}><option value="sequential">Shared worker</option><option value="parallel">Separate workers (experimental)</option></select><p className="input-description">WebGPU always runs speech and speaker detection in separate workers, so speech does not wait for speaker labels. Both models share GPU capacity. CPU-only scheduling can be chosen before loading models.</p></section>
