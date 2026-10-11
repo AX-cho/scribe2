@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Captions, Mic, Square, Pause, Play, Plus, Minus, ShieldCheck } from 'lucide-react';
+import { Captions, Mic, Square, Pause, Play, Plus, Minus, ShieldCheck, Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Conversation } from '@/components/Conversation';
 import { applyCaptionPatch } from './caption-updates';
@@ -7,6 +7,51 @@ import { validateModelFiles, downloadModels, modelDownloadMB, MODEL_CACHE, model
 import { InferenceClient } from './inference-client';
 
 export default function BrowserApp() {
+  const panel = useRef(), fullscreenButton = useRef();
+  const [fullscreen, setFullscreen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  async function toggleFullscreen() {
+    if (document.fullscreenElement === panel.current) { await document.exitFullscreen(); return; }
+    if (expanded) { setExpanded(false); return; }
+    if (panel.current?.requestFullscreen) {
+      try { await panel.current.requestFullscreen(); return; } catch { /* Use a full-window view when browser fullscreen is unavailable. */ }
+    }
+    setExpanded(true);
+  }
+  useEffect(() => {
+    const changed = () => {
+      const active = document.fullscreenElement === panel.current;
+      setFullscreen(active);
+      if (!active) fullscreenButton.current?.focus();
+    };
+    document.addEventListener('fullscreenchange', changed);
+    return () => document.removeEventListener('fullscreenchange', changed);
+  }, []);
+  useEffect(() => {
+    if (!expanded) return;
+    const before = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const outside = [...document.querySelectorAll('.app-header, .conversation-heading, .conversation-tools, .skip-link, .workspace > .notice-panel')];
+    const prior = outside.map(node => node.inert);
+    outside.forEach(node => { node.inert = true; });
+    fullscreenButton.current?.focus();
+    const keys = event => {
+      if (event.key === 'Escape') { event.preventDefault(); setExpanded(false); }
+      if (event.key === 'Tab') {
+        const controls = [...panel.current.querySelectorAll('button:not(:disabled), [tabindex="0"]')];
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener('keydown', keys);
+    return () => {
+      document.body.style.overflow = before;
+      outside.forEach((node, i) => { node.inert = prior[i]; });
+      document.removeEventListener('keydown', keys);
+      fullscreenButton.current?.focus();
+    };
+  }, [expanded]);
   const modelInput = useRef(), downloadController = useRef();
   const [downloading, setDownloading] = useState(false);
   const [modelFiles, setModelFiles] = useState(null);
@@ -169,8 +214,9 @@ export default function BrowserApp() {
       </div></section>
       {error && <div className="notice-panel notice-error" role="alert"><p>{error}</p></div>}
       {lag > 2 && live && <div className="notice-panel" role="status"><p>Captions are {lag.toFixed(1)} seconds behind. This device is processing pending speech.</p></div>}
-      <div className="workspace-grid"><section className="caption-panel" aria-labelledby="caption-title">
-        <div className="caption-panel-header"><div className="caption-heading"><h2 id="caption-title">Conversation</h2><span id="studio-status" className="listening-status" role="status">{status}</span></div></div>
+      <div className="workspace-grid"><section ref={panel} className={`caption-panel ${expanded ? 'conversation-expanded' : ''}`} aria-labelledby="caption-title" role={expanded ? 'dialog' : undefined} aria-modal={expanded ? true : undefined}>
+        <div className="caption-panel-header"><div className="caption-heading"><h2 id="caption-title">Conversation</h2><span id="studio-status" className="listening-status" role="status">{status}</span></div><div className="conversation-view-actions">{(fullscreen || expanded) && live && <Button variant="outline" onClick={stop}><Square size={16}/>Stop captions</Button>}<Button ref={fullscreenButton} id="conversation-fullscreen" variant="outline" onClick={toggleFullscreen} aria-pressed={fullscreen || expanded} aria-label={fullscreen || expanded ? 'Exit fullscreen conversation' : 'Fullscreen conversation'}>{fullscreen || expanded ? <Minimize size={18} aria-hidden="true"/> : <Maximize size={18} aria-hidden="true"/>}{fullscreen || expanded ? 'Exit fullscreen' : 'Fullscreen'}</Button></div></div>{(fullscreen || expanded) && error && <div className="notice-panel notice-error" role="alert">{error}</div>}
+        {(fullscreen || expanded) && lag > 2 && live && <div className="notice-panel" role="status">Captions are {lag.toFixed(1)} seconds behind.</div>}
         <div className="reading-toolbar"><div className="type-controls" role="group" aria-label="Caption text size"><Button variant="ghost" size="icon" aria-label="Decrease caption text size" disabled={size === 20} onClick={() => setSize(sizes[sizes.indexOf(size) - 1])}><Minus size={17}/></Button><span className="text-size-label">Aa {size}</span><Button variant="ghost" size="icon" aria-label="Increase caption text size" disabled={size === 40} onClick={() => setSize(sizes[sizes.indexOf(size) + 1])}><Plus size={17}/></Button></div><Button variant="outline" onClick={toggleHold} disabled={!session.segments.length} aria-pressed={holding}>{holding ? <Play size={16}/> : <Pause size={16}/>}{holding ? 'Resume text' : 'Hold text'}</Button></div>
         <Conversation session={session} live={live} holding={holding} heldSession={held} textSize={size} announce={announce} onReturn={() => setHolding(false)}/>
         <div className="caption-footer"><span>Speaker labels may change. Overlapping speech and word boundaries can be uncertain.</span></div>

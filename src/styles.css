@@ -81,3 +81,13 @@ button[data-slot="button"][data-variant="outline"]{border-color:var(--input)}
 /* Speaker changes remain inline; natural wrapping follows the reader's width. */
 .caption-flow{max-width:none;white-space:normal}.inline-turn{display:inline;color:var(--voice,var(--ink))}.inline-speaker{font:inherit;font-weight:700;white-space:nowrap}
 @media(forced-colors:active){.inline-turn{color:CanvasText}.inline-speaker{text-decoration:underline}}
+
+/* Conversation-only view keeps reading controls and microphone stop available. */
+.conversation-view-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.caption-panel:fullscreen,.caption-panel.conversation-expanded{width:100%;height:100dvh;max-height:none;margin:0;border:0;border-radius:0;display:flex;flex-direction:column;background:var(--paper);color:var(--ink);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.caption-panel.conversation-expanded{position:fixed;inset:0;z-index:100}
+.caption-panel:fullscreen .conversation-surface,.caption-panel.conversation-expanded .conversation-surface{flex:1;min-height:0;display:flex;flex-direction:column}
+.caption-panel:fullscreen .caption-scroll,.caption-panel.conversation-expanded .caption-scroll{height:auto;min-height:0;max-height:none;flex:1}
+.caption-panel:fullscreen .caption-panel-header,.caption-panel.conversation-expanded .caption-panel-header{flex-wrap:wrap}
+.caption-panel:fullscreen .caption-footer,.caption-panel.conversation-expanded .caption-footer,.caption-panel:fullscreen .reading-toolbar,.caption-panel.conversation-expanded .reading-toolbar{flex-shrink:0}
+.caption-panel::backdrop{background:var(--paper)}
