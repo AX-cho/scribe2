@@ -4,9 +4,9 @@ Live English captions with inline speaker labels. React, shadcn components, Atki
 
 ## Use
 
-Open the HTTPS site in a browser with WebGPU support. Select **Import models** and choose your `browser-models` folder containing `asr/` and `diar/`. Click **Load local models**, choose your microphone, then **Start captions**. Each device needs its own copy of the approved models. Import verifies exact sizes and hashes before inference. Unrelated files are ignored; missing, duplicate, or changed required files are rejected. Files are not uploaded or cached by the app.
+Open the HTTPS site in a browser with WebGPU support. Select **Download models** to fetch the pinned, approved models (about 912 MB), or select **Import models** and choose your `browser-models` folder containing `asr/` and `diar/`. Click **Load local models**, choose your microphone, then **Start captions**. Each device needs its own copy of the approved models. Import verifies exact sizes and hashes before inference. Unrelated files are ignored; missing, duplicate, or changed required files are rejected. Files are never uploaded. Downloads are cached only after integrity verification and reverified before reuse. Imports remain in memory. Use **Delete saved models** to clear downloaded model data; browser storage limits or eviction may require downloading again.
 
-Existing local installations can copy their `browser-models` folder to another device. The approved repositories, immutable revisions, filenames, and integrity hashes are in `config/browser-models.json`. This site does not download models automatically. Models are approximately 912 MB; verification and inference need additional RAM. Smaller devices may not keep up.
+Existing local installations can copy their `browser-models` folder to another device. The approved repositories, immutable revisions, filenames, and integrity hashes are in `config/browser-models.json`. Downloads begin only when you click **Download models**. Progress and cancellation are available. Download requests go to Hugging Face and its approved CDN; credentials and referrer are omitted. Models are approximately 912 MB; verification and inference need additional RAM. Smaller devices may not keep up.
 
 WebGPU runs speech encoding and speaker detection in separate workers; they still share GPU resources. Token decoding runs on CPU. CPU-only mode is available, but GitHub Pages does not provide our local server's cross-origin isolation headers, so WASM uses one thread. Speaker assignments and word boundaries are approximate. If speaker detection falls over 15 seconds behind it stops, while captions continue with a visible warning.
 
@@ -18,7 +18,7 @@ Choose **GitHub Actions** in repository Settings → Pages. The included workflo
 
 ## Privacy and security
 
-The website and source are public. GitHub receives ordinary site/asset requests. Microphone samples and captions stay in browser memory; no analytics or telemetry is added. HTTPS and browser microphone permission are required. Imported models must match the bundled pinned manifest; this is an integrity check, not a guarantee that an ML runtime has no vulnerabilities. Dependencies are locked; run `npm audit --audit-level=high` before each deployment.
+The website and source are public. GitHub receives ordinary site/asset requests; Hugging Face receives model download requests when requested. Microphone samples and captions stay in browser memory; no analytics or telemetry is added. HTTPS and browser microphone permission are required. Imported models must match the bundled pinned manifest; this is an integrity check, not a guarantee that an ML runtime has no vulnerabilities. Dependencies are locked; run `npm audit --audit-level=high` before each deployment.
 
 The page uses a restrictive CSP; inference workers restrict fetch to local imported models and same-origin runtime assets. Pages cannot reproduce all the custom security headers of the original local server. Do not put secrets in this repository. The JavaScript argmax uses the original joint graph, so users do not need a locally generated graph.
 
