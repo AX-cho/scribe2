@@ -46,9 +46,11 @@ async function diarize(flush) {
     if (available <= (first ? 0 : processor.feature_extractor.config.win_length)) break;
     const last = flush && available < count;
     const samples = pcm.slice(start - base, start - base + (last ? available : count));
+    const batchStart = performance.now();
     const inputs = await processor(samples, { is_streaming: true, is_first_audio_chunk: first, is_last_audio_chunk: last });
     const outputs = await model({ ...inputs, speaker_cache: cache });
     cache = outputs.speaker_cache;
+    if (role === 'diar') send('diar-batch', { elapsedMs:performance.now()-batchStart });
     if (role === 'diar') {
       const logits = Float32Array.from(outputs.logits.data);
       postMessage({ type: 'activity', frames: outputs.logits.dims[1], logits: logits.buffer }, [logits.buffer]);
