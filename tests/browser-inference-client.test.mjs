@@ -109,3 +109,23 @@ test('WebGPU diagnostics measure independent stage throughput and backlog',()=>{
   assert.equal(result.speakerStopped,false);
   client.terminate();
 });
+
+test('speaker-only mode routes audio only to diarization and acknowledges it',()=>{
+  const workers=[],events=[];
+  const client=new InferenceClient({device:'webgpu',speakerOnly:true,workerFactory:()=>{
+    const worker={sent:[],postMessage(data){this.sent.push(data);},terminate(){},emit(data){this.onmessage({data});}};
+    workers.push(worker);return worker;
+  }});
+  client.onmessage=({data})=>events.push(data);
+  client.postMessage({type:'start'});
+  client.postMessage({type:'audio',samples:new Float32Array(16000).buffer});
+  assert.equal(workers[0].sent.filter(x=>x.type==='audio').length,0);
+  assert.equal(workers[1].sent.filter(x=>x.type==='audio').length,1);
+  workers[1].emit({type:'diar-batch',elapsedMs:250});
+  workers[1].emit({type:'ack',samples:16000,elapsedMs:250});
+  assert.equal(events.filter(x=>x.type==='ack').at(-1).samples,16000);
+  const d=events.filter(x=>x.type==='diagnostics').at(-1);
+  assert.equal(d.batchP95Ms,250);
+  assert.equal(d.speakerOnly,true);
+  client.terminate();
+});
